@@ -6,6 +6,44 @@ An event-driven machine learning feature store client built with Python, Apache 
 
 In modern machine learning systems, providing fresh, relevant features to models at inference time is a critical operational challenge. This system addresses this bottleneck by ingesting raw data events in real-time, instantly processing them into aggregated features, and making these features available with millisecond latency.
 
+### System Architecture and Design
+The system consists of several interacting components orchestrated via Docker Compose. The diagram below illustrates the end-to-end data flow, from raw event generation to feature serving.
+
+```mermaid
+graph TD
+    subgraph "Data Generation"
+        producer[Event Producer<br>producer.py]
+    end
+
+    subgraph "Apache Kafka Ecosystem"
+        zk[Zookeeper] -.->|Manages Cluster State| broker
+        broker[Kafka Broker<br>Port 29092]
+    end
+    
+    subgraph "Feature Client Service (Python Container)"
+        consumer[Background Kafka Consumer Thread]
+        fastapi[FastAPI Application<br>Port 8000]
+        dbm[Database Manager<br>psycopg2]
+        
+        consumer -->|Validates via Pydantic & Computes| dbm
+        fastapi -->|Queries Latest Features| dbm
+    end
+
+    subgraph "Storage Layer"
+        pg[(PostgreSQL Database<br>Port 5432)]
+    end
+
+    subgraph "Client Applications"
+        ml_service[ML Inference Service<br>Simulated]
+    end
+
+    producer -->|Publishes Raw Events JSON| broker
+    broker -->|Consumes 'raw-events'| consumer
+    dbm -->|Idempotent UPSERT| pg
+    dbm -->|Indexed SELECT| pg
+    ml_service -->|HTTP GET /features/id| fastapi
+```
+
 ### The Pipeline
 1. **Event Generation**: Upstream services (simulated by `producer.py`) publish raw JSON user events (e.g., clicks, views, purchases) into an Apache Kafka topic (`raw-events`).
 2. **Ingestion & Processing**: A background Python consumer thread continuously polls Kafka, validates incoming JSON payloads against strict schemas using Pydantic, and computes the latest features.
