@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pydantic
+pydantic-settings
+confluent-kafka
+psycopg2-binary
+pytest
+httpx
